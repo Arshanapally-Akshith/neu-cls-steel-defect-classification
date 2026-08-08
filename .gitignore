@@ -19,7 +19,17 @@ models/*.h5
 models/*.pkl
 models/*.joblib
 
+# Exception: the Phase 3 ResNet18 checkpoint IS committed, so the Phase 6
+# Streamlit demo can run directly on a fresh clone/deploy without a ~30min
+# CPU retraining step first. Every other model artifact stays gitignored.
+!models/resnet18_finetuned.pt
+
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Streamlit — local run artifacts / secrets, never committed. This app
+# doesn't use secrets today, but ignore preventively (standard Streamlit
+# Community Cloud deployment pattern).
+.streamlit/secrets.toml
