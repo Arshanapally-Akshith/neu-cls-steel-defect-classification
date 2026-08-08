@@ -115,6 +115,25 @@ error_analysis:
     predictions_csv: reports/error_analysis_predictions.csv
     results_dir: reports
 
+# Phase 5 — Grad-CAM verification on the already-trained Phase 3 model.
+# Pure inference + backward-for-gradients on the frozen test manifest, using
+# the Phase 4 per-sample predictions CSV to select WHICH images to explain
+# (never re-derives correctness or re-runs training). Neither the model nor
+# the split are modified.
+gradcam:
+  target_layer: layer4.-1   # last BasicBlock of ResNet18's final conv stage
+  overlay_alpha: 0.45
+  # Classes flagged in Phase 4 as confusion-prone (from top_confusion_pairs)
+  # plus the historic patches/crazing pair, get extra correctly-classified
+  # examples beyond the one-per-class default set, to see whether attention
+  # is consistent even on a class's "easy" correct predictions.
+  confusion_prone_classes: [inclusion, pitted_surface, scratches, patches, crazing]
+  n_extra_correct_per_confusion_class: 1   # additional LOWEST-confidence correct example per class
+  output:
+    predictions_csv: reports/error_analysis_predictions.csv   # input: Phase 4's per-sample table
+    heatmaps_dir: reports/gradcam
+    results_dir: reports
+
 paths:
   reports_dir: reports
   models_dir: models
