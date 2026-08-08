@@ -12,6 +12,7 @@ from src.data.dedup import resolve_duplicates
 from src.data.extract import extract_dataset
 from src.data.index import build_image_index
 from src.data.integrity import check_duplicates
+from src.data.split import load_manifests
 
 
 @pytest.fixture(scope="session")
@@ -45,3 +46,16 @@ def deduped_index(image_index):
     duplicates = check_duplicates(image_index)
     deduped_df, _dropped = resolve_duplicates(image_index, duplicates["duplicate_groups"])
     return deduped_df
+
+
+@pytest.fixture(scope="session")
+def split_manifests(config):
+    """The frozen Phase 1 train/val/test manifests, loaded read-only.
+
+    Phase 2+ tests must use this fixture (never re-derive a split) so tests
+    exercise the same manifests the real pipeline loads.
+    """
+    split_dir = resolve_path(config["split"]["output_dir"])
+    if not split_dir.exists():
+        pytest.skip(f"Frozen split manifests not found at {split_dir}; run scripts/run_phase1.py first.")
+    return load_manifests(split_dir)

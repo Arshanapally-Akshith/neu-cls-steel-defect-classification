@@ -1,6 +1,7 @@
 # NEU-CLS Steel Defect Classification — project configuration
-# Phase 1 (data prep) settings live here. Later phases (model, training,
-# augmentation, Grad-CAM, Streamlit) will extend this file, not replace it.
+# Phase 1 (data prep) and Phase 2 (classical baseline) settings live here.
+# Later phases (transfer learning, Grad-CAM, Streamlit) will extend this
+# file, not replace it.
 
 seed: 42
 
@@ -36,5 +37,29 @@ split:
   test: 0.15
   output_dir: data/splits
 
+# Phase 2 — classical baseline: HOG features + Logistic Regression.
+# Loads images ONLY through data/splits/{train,val,test}.csv (the frozen
+# Phase 1 manifests). Preprocessing (HOG is stateless, but the feature
+# scaler) and the classifier are fit on train only; val is used purely for
+# hyperparameter (C) selection; test is touched exactly once, for final
+# reporting.
+baseline:
+  grayscale: true   # images are RGB-encoded JPEGs of grayscale content (see data_integrity.md)
+  hog:
+    orientations: 9
+    pixels_per_cell: [16, 16]
+    cells_per_block: [2, 2]
+    block_norm: L2-Hys
+  logistic_regression:
+    C_grid: [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    max_iter: 5000
+    solver: lbfgs
+  selection_metric: f1_macro   # metric used to pick the best C on the val set
+  random_state: 42
+  output:
+    model_path: models/baseline.joblib
+    results_dir: reports
+
 paths:
   reports_dir: reports
+  models_dir: models
