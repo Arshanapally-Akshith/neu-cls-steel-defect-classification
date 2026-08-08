@@ -13,6 +13,10 @@ matplotlib==3.10.8
 
 # Phase 3 (ResNet18 transfer learning). CPU-only build — install with:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-# Later phases will add grad-cam, streamlit, etc.
 torch==2.13.0
 torchvision==0.28.0
+
+# Phase 5 (Grad-CAM) has no extra dependencies (matplotlib/numpy/PIL above cover it).
+
+# Phase 6 (Streamlit demo).
+streamlit==1.56.0

@@ -15,6 +15,7 @@ from src.models.transfer import (
     load_trained_model,
     make_dataloader,
     predict,
+    predict_image,
     predict_with_confidence,
     run_cross_validation,
     set_seed,
@@ -233,3 +234,79 @@ def test_load_trained_model_predicts_on_real_test_sample(resnet_checkpoint_path,
     assert len(preds) == len(sample)
     assert set(preds) <= set(classes)
     assert ((confidences > 0.0) & (confidences <= 1.0)).all()
+
+
+# ---------------------------------------------------------------------------
+# predict_image: single-image inference used by the Streamlit demo (Phase 6).
+# ---------------------------------------------------------------------------
+
+def test_predict_image_output_structure(config):
+    tl_cfg = config["transfer_learning"]
+    model = build_model(len(CLASSES), tl_cfg["freeze_backbone"], tl_cfg["pretrained"], seed=0)
+    _train_t, eval_t = build_transforms(tl_cfg)
+
+    from PIL import Image
+    img = Image.fromarray(np.zeros((200, 200, 3), dtype=np.uint8))
+
+    result = predict_image(model, img, eval_t, CLASSES)
+
+    assert result["predicted_class"] in CLASSES
+    assert result["predicted_idx"] == CLASSES.index(result["predicted_class"])
+    assert 0.0 <= result["confidence"] <= 1.0
+    assert set(result["class_probabilities"].keys()) == set(CLASSES)
+    assert sum(result["class_probabilities"].values()) == pytest.approx(1.0, abs=1e-5)
+    assert result["class_probabilities"][result["predicted_class"]] == pytest.approx(result["confidence"])
+    assert result["input_tensor"].shape == (1, 3, *tl_cfg["input_size"])
+
+
+def test_predict_image_handles_non_rgb_input(config):
+    """Grayscale (mode 'L') and RGBA uploads must not crash — predict_image
+    converts to RGB internally, same as training did (grayscale=False load)."""
+    tl_cfg = config["transfer_learning"]
+    model = build_model(len(CLASSES), tl_cfg["freeze_backbone"], tl_cfg["pretrained"], seed=0)
+    _train_t, eval_t = build_transforms(tl_cfg)
+
+    from PIL import Image
+    gray_img = Image.fromarray(np.zeros((200, 200), dtype=np.uint8), mode="L")
+    rgba_img = Image.fromarray(np.zeros((200, 200, 4), dtype=np.uint8), mode="RGBA")
+
+    for img in (gray_img, rgba_img):
+        result = predict_image(model, img, eval_t, CLASSES)
+        assert result["predicted_class"] in CLASSES
+
+
+def test_predict_image_tensor_reusable_for_gradcam(config):
+    """The returned input_tensor must be usable directly by GradCAM without
+    re-running the transform — that's the whole point of returning it."""
+    from PIL import Image
+
+    from src.gradcam.gradcam import GradCAM
+
+    tl_cfg = config["transfer_learning"]
+    model = build_model(len(CLASSES), tl_cfg["freeze_backbone"], tl_cfg["pretrained"], seed=0)
+    _train_t, eval_t = build_transforms(tl_cfg)
+    img = Image.fromarray(np.zeros((200, 200, 3), dtype=np.uint8))
+
+    result = predict_image(model, img, eval_t, CLASSES)
+    with GradCAM(model, model.layer4[-1]) as gc:
+        cam_result = gc.generate(result["input_tensor"], class_idx=result["predicted_idx"])
+
+    assert cam_result["class_idx"] == result["predicted_idx"]
+    assert cam_result["cam"].shape == (7, 7)
+
+
+def test_predict_image_on_real_checkpoint_is_read_only(resnet_checkpoint_path, split_manifests, raw_dir, config):
+    hash_before = hashlib.sha256(resnet_checkpoint_path.read_bytes()).hexdigest()
+
+    model, classes, _ckpt = load_trained_model(resnet_checkpoint_path)
+    tl_cfg = config["transfer_learning"]
+    _train_t, eval_t = build_transforms(tl_cfg)
+
+    sample_row = split_manifests["test"].iloc[0]
+    from PIL import Image
+    img = Image.open(raw_dir / sample_row["filename"])
+    result = predict_image(model, img, eval_t, classes)
+
+    hash_after = hashlib.sha256(resnet_checkpoint_path.read_bytes()).hexdigest()
+    assert hash_before == hash_after
+    assert result["predicted_class"] in classes

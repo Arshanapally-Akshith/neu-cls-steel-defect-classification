@@ -1,7 +1,7 @@
 # NEU-CLS Steel Defect Classification — project configuration
 # Phase 1 (data prep), Phase 2 (classical baseline), Phase 3 (ResNet18
-# transfer learning) and Phase 4 (error analysis) settings live here. Later
-# phases (Grad-CAM, Streamlit) will extend this file, not replace it.
+# transfer learning), Phase 4 (error analysis), Phase 5 (Grad-CAM) and
+# Phase 6 (Streamlit demo) settings all live here.
 
 seed: 42
 
@@ -133,6 +133,50 @@ gradcam:
     predictions_csv: reports/error_analysis_predictions.csv   # input: Phase 4's per-sample table
     heatmaps_dir: reports/gradcam
     results_dir: reports
+
+# Phase 6 — Streamlit demo. Pure UI layer over the already-trained Phase 3
+# model and the Phase 5 Grad-CAM utilities — reuses src.models.transfer and
+# src.gradcam.gradcam directly rather than reimplementing any prediction or
+# explanation logic. Never trains or modifies the model/split.
+streamlit:
+  title: "NEU-CLS Steel Surface Defect Classifier"
+  page_icon: "🔍"
+  allowed_upload_types: [jpg, jpeg, png, bmp]
+  # Phase 4's dominant ResNet18 confusion group (inclusion <-> pitted_surface
+  # / scratches — see reports/error_analysis.md "Most Important Confusion
+  # Pairs"). A caution note is shown whenever the predicted class is one of
+  # these three.
+  confusion_note:
+    classes: [inclusion, pitted_surface, scratches]
+    text: >-
+      Heads up: Phase 4's error analysis found this model's most common
+      mistakes are mixing up **inclusion**, **pitted_surface**, and
+      **scratches** with each other (e.g. inclusion predicted as
+      pitted_surface in 4 of 45 test images). This prediction falls in that
+      group — worth a second look, especially if the confidence above isn't
+      high.
+  model_limitations: >-
+    - Backbone is a **frozen, ImageNet-pretrained ResNet18** — only the
+    final classification layer was trained (a linear probe), not the
+    convolutional features themselves (see Phase 3).
+
+    - Trained and evaluated on the **NEU-CLS dataset only**: 1,799 unique
+    200x200 grayscale images from one imaging setup. Performance on a
+    different steel mill's camera, lighting, or surface finish is untested
+    and may be substantially worse (domain shift).
+
+    - Test-set accuracy is **96.3%** (Phase 3/4), but errors concentrate in
+    the confusion group noted above — treat predictions in that group with
+    more caution than the headline accuracy alone suggests.
+
+    - The Grad-CAM overlay shows where the model's prediction is locally
+    *gradient-sensitive*, not a proof of causal reasoning. Phase 5 found
+    this generally aligns with visible defect texture, but flagged the
+    **crazing** class specifically as showing a possible edge/corner
+    attention pattern (based on only 3 examples — a hypothesis, not a
+    confirmed finding).
+  output:
+    model_path: models/resnet18_finetuned.pt   # documents the checkpoint this app expects; loaded via transfer_learning.output.model_path
 
 paths:
   reports_dir: reports

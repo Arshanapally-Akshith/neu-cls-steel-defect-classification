@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+from PIL import Image
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -126,6 +127,38 @@ def predict_with_confidence(model: nn.Module, loader: DataLoader, device: torch.
         all_labels.extend(idx_to_class[l] for l in labels.numpy())
         all_conf.extend(conf.cpu().numpy().tolist())
     return np.array(all_labels), np.array(all_preds), np.array(all_conf)
+
+
+@torch.no_grad()
+def predict_image(model: nn.Module, pil_image: Image.Image, eval_transform, classes: list[str]) -> dict:
+    """Single-image inference — no manifest/DataLoader needed. Used by the
+    Streamlit demo (and anywhere else that needs a one-off prediction on an
+    arbitrary image rather than a frozen split).
+
+    Converts to RGB first regardless of the input's mode (matches training:
+    Phase 3 loaded images with grayscale=False, see src/data/loader.py), so
+    a genuinely grayscale, RGBA, or palette-mode upload is handled the same
+    way a dataset image would be.
+
+    Returns a dict with the predicted class, its confidence, the full
+    per-class probability distribution (in `classes` order), and the exact
+    preprocessed input_tensor used — callers (e.g. Grad-CAM) should reuse
+    that tensor rather than re-running the transform, to guarantee
+    prediction and explanation see identical input.
+    """
+    model.eval()
+    input_tensor = eval_transform(pil_image.convert("RGB")).unsqueeze(0)
+    output = model(input_tensor)
+    probs = torch.softmax(output, dim=1)[0].cpu().numpy()
+    pred_idx = int(probs.argmax())
+
+    return {
+        "predicted_class": classes[pred_idx],
+        "predicted_idx": pred_idx,
+        "confidence": float(probs[pred_idx]),
+        "class_probabilities": {cls: float(probs[i]) for i, cls in enumerate(classes)},
+        "input_tensor": input_tensor,
+    }
 
 
 def load_trained_model(checkpoint_path: Path) -> tuple[nn.Module, list[str], dict]:
