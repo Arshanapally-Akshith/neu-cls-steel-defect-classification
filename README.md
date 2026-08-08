@@ -2,11 +2,58 @@
 
 6-class steel surface defect classification via transfer learning, with
 rigorous error analysis and Grad-CAM verification, deployed as a Streamlit
-demo. See [WORKFLOW.md](<WORKFLOW%20(3).md>) for the full phase-by-phase plan.
+demo. See [WORKFLOW.md](WORKFLOW.md) for the full phase-by-phase plan.
+
+**🔗 Live demo:** **[neu-cls-steel-defect-classification-b.streamlit.app](https://neu-cls-steel-defect-classification-b.streamlit.app/)**
 
 **Status:** Phases 1–6 complete (data prep, classical baseline, ResNet18
 transfer learning, error analysis, Grad-CAM verification, Streamlit demo).
 Phase 7 (write-up) not yet done.
+
+## Results
+
+Final, held-out **test set** (270 images, touched exactly once per model —
+see `reports/error_analysis.md` for the full methodology):
+
+| Metric | HOG + Logistic Regression (baseline) | ResNet18 Transfer Learning |
+|---|---|---|
+| Accuracy | 77.0% | **96.3%** |
+| Precision (macro) | 0.770 | **0.963** |
+| Recall (macro) | 0.770 | **0.963** |
+| F1 (macro) | 0.763 | **0.963** |
+
+5-fold cross-validation on the development set (train+val, 1,529 images)
+gave **0.970 ± 0.005 mean F1** at the selected epoch — consistent with the
+270-image held-out test result above, i.e. no meaningful train/test gap.
+
+| Class | Baseline F1 | ResNet18 F1 |
+|---|---|---|
+| crazing | 0.785 | **0.989** |
+| inclusion | 0.813 | **0.907** |
+| patches | 0.597 | **1.000** |
+| pitted_surface | 0.627 | **0.935** |
+| rolled-in_scale | 0.968 | **0.989** |
+| scratches | 0.787 | **0.956** |
+
+![Per-class F1: baseline vs. ResNet18](reports/error_analysis_f1_comparison.png)
+
+**Key error-analysis finding** (`reports/error_analysis.md`): the baseline's
+single biggest failure mode — 15 of 45 `patches` test images misclassified
+as `crazing` — is **fully resolved** by the ResNet18 model (0 such errors).
+ResNet18's own remaining confusion is smaller and different: mostly
+`inclusion` mixed up with `pitted_surface`/`scratches` (the Streamlit demo
+flags this automatically, see below).
+
+![ResNet18 test confusion matrix](reports/transfer_confusion_matrix.png)
+
+**Key Grad-CAM finding** (`reports/gradcam_analysis.md`): for 5 of 6
+classes, the model's attention plausibly overlaps visible defect texture.
+`crazing` is a flagged exception — its heatmaps consistently concentrate
+in a corner/edge region rather than spreading across the image the way
+real crazing texture does. Based on only 3 examples, so treated as a
+hypothesis worth further investigation, not a settled conclusion — see the
+full report for the honest, evidence-graded write-up (including why
+Grad-CAM is evidence, not proof).
 
 ## Dataset
 
@@ -26,22 +73,41 @@ Concretely:
 - Only the `.jpg` images are extracted; the `.txt` bounding-box label files are never read.
 - The zip's own train(295)/valid(5) per-class split is a detection split, not
   a classification split — it is discarded.
-- A fresh, fixed, stratified 70/15/15 split is built from the pooled 1,800
-  images and frozen under `data/splits/`. One exact-duplicate pair was found
-  and resolved (see `reports/data_integrity.md`), leaving 1,799 unique images.
+- A fresh, fixed, stratified 70/15/15 split (1,259 / 270 / 270 images) is
+  built from the pooled 1,800 images and frozen under `data/splits/`. One
+  exact-duplicate pair was found and resolved (see
+  `reports/data_integrity.md`), leaving 1,799 unique images.
 
 ## Setup
 
 ```bash
+git clone https://github.com/Arshanapally-Akshith/neu-cls-steel-defect-classification.git
+cd neu-cls-steel-defect-classification
 pip install -r requirements.txt
 # PyTorch is CPU-only in requirements.txt; for a CUDA build instead, see:
 # https://pytorch.org/get-started/locally/
 ```
 
-## Running the pipeline (in order)
+## Try it locally
+
+```bash
+streamlit run streamlit_app.py
+```
+
+`models/resnet18_finetuned.pt` is committed to this repo, so this works
+immediately on a fresh clone — no training required. Upload a steel-surface
+image and the app shows the predicted defect class, its confidence, a
+Grad-CAM overlay, and (if applicable) a note when the prediction falls into
+the `inclusion`/`pitted_surface`/`scratches` confusion group identified
+above. The app is a thin UI layer only: all model loading, preprocessing,
+prediction, and Grad-CAM logic is reused as-is from `src/models/transfer.py`
+and `src/gradcam/gradcam.py`, never reimplemented.
+
+## Reproducing the full pipeline
 
 Each phase's script is idempotent and reads only the frozen artifacts the
-previous phase produced — never re-derives them.
+previous phase produced — never re-derives them. Not required to try the
+demo (above); only needed if you want to regenerate results from scratch.
 
 ```bash
 python -m scripts.run_phase1               # data integrity + frozen 70/15/15 split
@@ -54,36 +120,8 @@ python -m scripts.run_phase5_gradcam        # Grad-CAM heatmaps + honest attenti
 Each writes its report(s) under `reports/` (see that directory for the
 full list) and, where applicable, a model artifact under `models/`. Those
 are gitignored and regenerable via the scripts above — except
-`models/resnet18_finetuned.pt`, which is committed (see the Streamlit
-section below for why).
-
-## Streamlit Demo (Phase 6)
-
-```bash
-streamlit run streamlit_app.py
-```
-
-Upload a steel-surface image and the app shows the predicted defect class,
-its confidence, a Grad-CAM overlay, and (if applicable) a note when the
-prediction falls into Phase 4's known confusion group
-(`inclusion`/`pitted_surface`/`scratches`). Requires
-`models/resnet18_finetuned.pt` to exist — it's committed to this repo (see
-below), so a fresh clone works with no retraining step. If it's ever
-missing, regenerate it with `python -m scripts.run_phase3_transfer`
-(~30 min on CPU).
-
-The app is a thin UI layer only: all model loading, preprocessing,
-prediction, and Grad-CAM logic is reused from `src/models/transfer.py` and
-`src/gradcam/gradcam.py`, not reimplemented.
-
-**Deploying to Streamlit Community Cloud:** point it at `streamlit_app.py`
-on this repo — no extra setup needed. `models/resnet18_finetuned.pt`
-(~45MB) is committed as a deliberate, explicit exception to the general
-"model artifacts are gitignored" policy (see `.gitignore`), specifically so
-the demo runs immediately on a fresh clone/deploy without a ~30 min CPU
-retraining step first. Every other model artifact (`models/baseline.joblib`,
-etc.) stays gitignored and regenerable, as before. There are no secrets to
-configure.
+`models/resnet18_finetuned.pt`, which is committed as a deliberate
+exception so the Streamlit demo works without retraining first.
 
 ## Tests
 
@@ -91,8 +129,8 @@ configure.
 pytest
 ```
 
-Covers: dataset integrity, split correctness/reproducibility, the HOG
-baseline pipeline (including no train/val/test leakage), the ResNet18
+98 tests. Covers: dataset integrity, split correctness/reproducibility, the
+HOG baseline pipeline (including no train/val/test leakage), the ResNet18
 training/CV/evaluation pipeline (including a regression test that the
 frozen test manifest is never read during cross-validation), Phase 4's
 error-analysis utilities (including a bug-regression test), Phase 5's
