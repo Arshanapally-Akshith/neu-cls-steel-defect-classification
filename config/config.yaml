@@ -1,0 +1,40 @@
+# NEU-CLS Steel Defect Classification — project configuration
+# Phase 1 (data prep) settings live here. Later phases (model, training,
+# augmentation, Grad-CAM, Streamlit) will extend this file, not replace it.
+
+seed: 42
+
+dataset:
+  # NEU-CLS.zip contains image files alongside object-detection annotations
+  # (YOLO-format bbox .txt labels). This project uses only the images, for
+  # 6-class whole-image classification, and intentionally ignores the
+  # detection labels — they are never read anywhere in this pipeline.
+  zip_path: NEU-CLS.zip
+  raw_dir: data/raw/NEU-CLS
+  # Canonical class slugs, derived from the filename prefixes inside the zip.
+  classes:
+    - crazing
+    - inclusion
+    - patches
+    - pitted_surface
+    - rolled-in_scale
+    - scratches
+  images_per_class: 300
+  total_images: 1800
+  # NOTE: raw data is exactly balanced (300/class, 1800 total), but contains
+  # one exact-duplicate pair (patches_101.jpg == patches_105.jpg, confirmed
+  # via SHA-256). That pair is resolved by dropping one copy *before*
+  # splitting (see src/data/dedup.py) so splits are built from 1799 unique
+  # images (patches: 299). See reports/data_integrity.md for details.
+  expected_size: [200, 200]   # [width, height]
+  expected_mode: RGB
+  valid_extensions: [.jpg]
+
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  output_dir: data/splits
+
+paths:
+  reports_dir: reports

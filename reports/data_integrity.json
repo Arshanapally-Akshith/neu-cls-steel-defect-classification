@@ -1,0 +1,56 @@
+{
+  "counts": {
+    "total_images": 1800,
+    "expected_total": 1800,
+    "total_matches": true,
+    "counts_per_class": {
+      "crazing": 300,
+      "inclusion": 300,
+      "patches": 300,
+      "pitted_surface": 300,
+      "rolled-in_scale": 300,
+      "scratches": 300
+    },
+    "images_per_class_expected": 300,
+    "missing_classes": [],
+    "unexpected_classes": [],
+    "imbalanced_classes": {},
+    "balanced": true
+  },
+  "corruption": {
+    "n_corrupted": 0,
+    "corrupted_files": []
+  },
+  "dimensions": {
+    "expected_size": [
+      200,
+      200
+    ],
+    "expected_mode": "RGB",
+    "size_distribution": {
+      "(200, 200)": 1800
+    },
+    "mode_distribution": {
+      "RGB": 1800
+    },
+    "n_mismatched_size": 0,
+    "n_mismatched_mode": 0,
+    "mismatched_size_files": [],
+    "mismatched_mode_files": [],
+    "all_uniform_size": true,
+    "all_uniform_mode": true
+  },
+  "duplicates": {
+    "n_unique_hashes": 1799,
+    "n_duplicate_groups": 1,
+    "n_duplicate_files": 1,
+    "duplicate_groups": [
+      [
+        "C:\\Projects_for_placements\\ML_Projects\\NEU_CLS_classification\\data\\raw\\NEU-CLS\\patches_101.jpg",
+        "C:\\Projects_for_placements\\ML_Projects\\NEU_CLS_classification\\data\\raw\\NEU-CLS\\patches_105.jpg"
+      ]
+    ],
+    "has_duplicates": true
+  },
+  "all_checks_passed": false
+}

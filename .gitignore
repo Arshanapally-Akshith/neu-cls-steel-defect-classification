@@ -1,0 +1,23 @@
+# Raw dataset — never commit. Splits are frozen manifests (small CSV/JSON)
+# that reference these files by relative path and ARE committed.
+NEU-CLS.zip
+data/raw/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Models / large artifacts (added ahead of Phase 2+)
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.pkl
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

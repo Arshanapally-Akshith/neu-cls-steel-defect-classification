@@ -1,0 +1,43 @@
+{
+  "seed": 42,
+  "fractions": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "counts": {
+    "train": {
+      "total": 1259,
+      "per_class": {
+        "crazing": 210,
+        "inclusion": 210,
+        "patches": 209,
+        "pitted_surface": 210,
+        "rolled-in_scale": 210,
+        "scratches": 210
+      }
+    },
+    "val": {
+      "total": 270,
+      "per_class": {
+        "crazing": 45,
+        "inclusion": 45,
+        "patches": 45,
+        "pitted_surface": 45,
+        "rolled-in_scale": 45,
+        "scratches": 45
+      }
+    },
+    "test": {
+      "total": 270,
+      "per_class": {
+        "crazing": 45,
+        "inclusion": 45,
+        "patches": 45,
+        "pitted_surface": 45,
+        "rolled-in_scale": 45,
+        "scratches": 45
+      }
+    }
+  }
+}
