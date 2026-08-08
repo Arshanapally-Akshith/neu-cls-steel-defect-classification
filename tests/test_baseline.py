@@ -1,9 +1,17 @@
+import hashlib
+
 import numpy as np
 import pytest
 
 from src.data.loader import load_split_images
 from src.eval.metrics import compute_metrics
-from src.models.baseline import build_inference_pipeline, extract_features, select_best_model
+from src.models.baseline import (
+    build_inference_pipeline,
+    extract_features,
+    load_trained_pipeline,
+    predict_with_confidence,
+    select_best_model,
+)
 
 HOG_PARAMS = dict(orientations=9, pixels_per_cell=(16, 16), cells_per_block=(2, 2), block_norm="L2-Hys")
 
@@ -128,3 +136,50 @@ def test_end_to_end_pipeline_on_real_sample(split_manifests, raw_dir):
     )
     raw_preds = inference_pipeline.predict(X_val_img)
     np.testing.assert_array_equal(raw_preds, y_val_pred)
+
+
+# ---------------------------------------------------------------------------
+# predict_with_confidence: used by Phase 4 error analysis for per-sample
+# confidences that Phase 2 itself never persisted.
+# ---------------------------------------------------------------------------
+
+def test_predict_with_confidence_matches_predict_and_is_a_probability(synthetic_features):
+    classes, X_train, y_train, X_val, y_val = synthetic_features
+    result = select_best_model(
+        X_train, y_train, X_val, y_val, classes,
+        C_grid=[1.0], max_iter=1000, solver="lbfgs",
+        random_state=42, selection_metric="f1_macro",
+    )
+
+    preds, confidences = predict_with_confidence(result.best_pipeline, X_val)
+
+    np.testing.assert_array_equal(preds, result.best_pipeline.predict(X_val))
+    assert ((confidences >= 0.0) & (confidences <= 1.0)).all()
+    proba = result.best_pipeline.predict_proba(X_val)
+    np.testing.assert_allclose(confidences, proba.max(axis=1))
+
+
+# ---------------------------------------------------------------------------
+# load_trained_pipeline: pure inference on the real Phase 2 artifact — must
+# not modify the model file on disk.
+# ---------------------------------------------------------------------------
+
+def test_load_trained_pipeline_is_read_only(baseline_model_path):
+    hash_before = hashlib.sha256(baseline_model_path.read_bytes()).hexdigest()
+    pipeline = load_trained_pipeline(baseline_model_path)
+    hash_after = hashlib.sha256(baseline_model_path.read_bytes()).hexdigest()
+
+    assert hash_before == hash_after
+    assert hasattr(pipeline, "predict")
+    assert hasattr(pipeline, "predict_proba")
+
+
+def test_load_trained_pipeline_predicts_on_real_test_sample(baseline_model_path, split_manifests, raw_dir):
+    pipeline = load_trained_pipeline(baseline_model_path)
+    sample = split_manifests["test"].head(4)
+    X, y = load_split_images(sample, raw_dir, grayscale=True)
+
+    preds, confidences = predict_with_confidence(pipeline, X)
+    assert len(preds) == len(sample)
+    assert set(pipeline.named_steps["clf"].classes_) >= set(preds)
+    assert ((confidences > 0.0) & (confidences <= 1.0)).all()

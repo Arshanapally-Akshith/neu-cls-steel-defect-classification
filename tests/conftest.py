@@ -59,3 +59,23 @@ def split_manifests(config):
     if not split_dir.exists():
         pytest.skip(f"Frozen split manifests not found at {split_dir}; run scripts/run_phase1.py first.")
     return load_manifests(split_dir)
+
+
+@pytest.fixture(scope="session")
+def baseline_model_path(config):
+    """Path to the trained Phase 2 pipeline. Tests using this never retrain
+    it — inference-only, read-only."""
+    path = resolve_path(config["baseline"]["output"]["model_path"])
+    if not path.exists():
+        pytest.skip(f"Trained baseline model not found at {path}; run scripts/run_phase2_baseline.py first.")
+    return path
+
+
+@pytest.fixture(scope="session")
+def resnet_checkpoint_path(config):
+    """Path to the trained Phase 3 checkpoint. Tests using this never
+    retrain it — inference-only, read-only."""
+    path = resolve_path(config["transfer_learning"]["output"]["model_path"])
+    if not path.exists():
+        pytest.skip(f"Trained ResNet18 checkpoint not found at {path}; run scripts/run_phase3_transfer.py first.")
+    return path

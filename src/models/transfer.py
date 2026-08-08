@@ -109,6 +109,39 @@ def predict(model: nn.Module, loader: DataLoader, device: torch.device, idx_to_c
     return np.array(all_labels), np.array(all_preds)
 
 
+@torch.no_grad()
+def predict_with_confidence(model: nn.Module, loader: DataLoader, device: torch.device, idx_to_class: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Like `predict`, but also returns each prediction's softmax confidence
+    (the predicted class's probability)."""
+    model.eval()
+    all_preds = []
+    all_labels = []
+    all_conf = []
+    for images, labels in loader:
+        images = images.to(device)
+        outputs = model(images)
+        probs = torch.softmax(outputs, dim=1)
+        conf, preds = probs.max(dim=1)
+        all_preds.extend(idx_to_class[p] for p in preds.cpu().numpy())
+        all_labels.extend(idx_to_class[l] for l in labels.numpy())
+        all_conf.extend(conf.cpu().numpy().tolist())
+    return np.array(all_labels), np.array(all_preds), np.array(all_conf)
+
+
+def load_trained_model(checkpoint_path: Path) -> tuple[nn.Module, list[str], dict]:
+    """Load the Phase 3 checkpoint saved by scripts/run_phase3_transfer.py.
+    Pure inference — never retrains or otherwise modifies the model.
+    `pretrained=False` here skips the ImageNet-weights download entirely,
+    since load_state_dict immediately overwrites every parameter (backbone
+    included) with the trained checkpoint anyway."""
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    classes = checkpoint["classes"]
+    model = build_model(len(classes), freeze_backbone=True, pretrained=False, seed=0)
+    model.load_state_dict(checkpoint["state_dict"])
+    model.eval()
+    return model, classes, checkpoint
+
+
 @dataclass
 class FoldResult:
     fold: int

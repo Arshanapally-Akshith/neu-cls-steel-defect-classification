@@ -1,7 +1,7 @@
 # NEU-CLS Steel Defect Classification — project configuration
-# Phase 1 (data prep), Phase 2 (classical baseline) and Phase 3 (ResNet18
-# transfer learning) settings live here. Later phases (Grad-CAM, Streamlit)
-# will extend this file, not replace it.
+# Phase 1 (data prep), Phase 2 (classical baseline), Phase 3 (ResNet18
+# transfer learning) and Phase 4 (error analysis) settings live here. Later
+# phases (Grad-CAM, Streamlit) will extend this file, not replace it.
 
 seed: 42
 
@@ -101,6 +101,18 @@ transfer_learning:
   seed: 42
   output:
     model_path: models/resnet18_finetuned.pt
+    results_dir: reports
+
+# Phase 4 — error analysis on the already-trained, already-evaluated Phase 2
+# and Phase 3 models. Re-runs inference (not training) for both models on
+# the frozen test manifest to get PER-SAMPLE predictions/confidences, which
+# Phase 2/3 never persisted (only aggregate metrics). Neither model, the
+# split, nor the test data are modified by this phase.
+error_analysis:
+  top_n_confusion_pairs: 5
+  max_misclassified_grid_images: 9
+  output:
+    predictions_csv: reports/error_analysis_predictions.csv
     results_dir: reports
 
 paths:

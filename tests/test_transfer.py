@@ -1,3 +1,4 @@
+import hashlib
 from unittest.mock import patch
 
 import numpy as np
@@ -11,6 +12,10 @@ from src.models.transfer import (
     build_model,
     build_transforms,
     evaluate_on_manifest,
+    load_trained_model,
+    make_dataloader,
+    predict,
+    predict_with_confidence,
     run_cross_validation,
     set_seed,
     train_final_model,
@@ -166,3 +171,65 @@ def test_set_seed_makes_torch_rand_reproducible():
     set_seed(7)
     b = torch.rand(5)
     torch.testing.assert_close(a, b)
+
+
+# ---------------------------------------------------------------------------
+# predict_with_confidence: used by Phase 4 error analysis for per-sample
+# confidences that Phase 3 itself never persisted.
+# ---------------------------------------------------------------------------
+
+def test_predict_with_confidence_matches_predict_and_is_a_probability(tiny_dev_manifest, tiny_tl_cfg, raw_dir):
+    class_to_idx = {c: i for i, c in enumerate(CLASSES)}
+    idx_to_class = {i: c for c, i in class_to_idx.items()}
+    model = build_model(len(CLASSES), tiny_tl_cfg["freeze_backbone"], tiny_tl_cfg["pretrained"], seed=0)
+
+    _train_t, eval_t = build_transforms(tiny_tl_cfg)
+    loader = make_dataloader(
+        tiny_dev_manifest, raw_dir, class_to_idx, eval_t,
+        batch_size=tiny_tl_cfg["training"]["batch_size"], shuffle=False,
+        num_workers=tiny_tl_cfg["training"]["num_workers"], seed=0,
+    )
+
+    y_true_a, preds_a = predict(model, loader, torch.device("cpu"), idx_to_class)
+    y_true_b, preds_b, confidences = predict_with_confidence(model, loader, torch.device("cpu"), idx_to_class)
+
+    np.testing.assert_array_equal(preds_a, preds_b)
+    np.testing.assert_array_equal(y_true_a, y_true_b)
+    assert ((confidences >= 0.0) & (confidences <= 1.0)).all()
+    # 6-class softmax confidence can never be below 1/6 for the argmax class
+    assert (confidences >= 1.0 / len(CLASSES) - 1e-6).all()
+
+
+# ---------------------------------------------------------------------------
+# load_trained_model: pure inference on the real Phase 3 checkpoint — must
+# not modify the checkpoint file on disk.
+# ---------------------------------------------------------------------------
+
+def test_load_trained_model_is_read_only(resnet_checkpoint_path):
+    hash_before = hashlib.sha256(resnet_checkpoint_path.read_bytes()).hexdigest()
+    model, classes, checkpoint = load_trained_model(resnet_checkpoint_path)
+    hash_after = hashlib.sha256(resnet_checkpoint_path.read_bytes()).hexdigest()
+
+    assert hash_before == hash_after
+    assert classes == CLASSES
+    assert not model.training  # loaded in eval() mode
+
+
+def test_load_trained_model_predicts_on_real_test_sample(resnet_checkpoint_path, split_manifests, raw_dir, config):
+    model, classes, _ckpt = load_trained_model(resnet_checkpoint_path)
+    tl_cfg = config["transfer_learning"]
+    class_to_idx = {c: i for i, c in enumerate(classes)}
+    idx_to_class = {i: c for c, i in class_to_idx.items()}
+
+    sample = split_manifests["test"].head(4)
+    _train_t, eval_t = build_transforms(tl_cfg)
+    loader = make_dataloader(
+        sample, raw_dir, class_to_idx, eval_t,
+        batch_size=tl_cfg["training"]["batch_size"], shuffle=False,
+        num_workers=tl_cfg["training"]["num_workers"], seed=tl_cfg["seed"],
+    )
+
+    y_true, preds, confidences = predict_with_confidence(model, loader, torch.device("cpu"), idx_to_class)
+    assert len(preds) == len(sample)
+    assert set(preds) <= set(classes)
+    assert ((confidences > 0.0) & (confidences <= 1.0)).all()

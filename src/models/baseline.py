@@ -9,7 +9,9 @@ already-fitted scaler + classifier with the (stateless) HOG step, so it can
 run inference directly on raw images later (e.g. the Streamlit demo).
 """
 from dataclasses import dataclass, field
+from pathlib import Path
 
+import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -87,3 +89,23 @@ def build_inference_pipeline(hog_params: dict, fitted_scaler: StandardScaler, fi
         ("scaler", fitted_scaler),
         ("clf", fitted_clf),
     ])
+
+
+def load_trained_pipeline(model_path: Path) -> Pipeline:
+    """Load the Phase 2 pipeline saved by scripts/run_phase2_baseline.py.
+    Pure inference — never refits anything."""
+    return joblib.load(model_path)
+
+
+def predict_with_confidence(pipeline: Pipeline, images: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Predict class + confidence (max predicted probability) for raw images.
+
+    Uses the fitted classifier's own `.classes_` order to index into
+    predict_proba's columns, rather than assuming any particular ordering.
+    """
+    proba = pipeline.predict_proba(images)
+    classes_ = pipeline.named_steps["clf"].classes_
+    best_idx = proba.argmax(axis=1)
+    preds = classes_[best_idx]
+    confidences = proba[np.arange(len(proba)), best_idx]
+    return preds, confidences
