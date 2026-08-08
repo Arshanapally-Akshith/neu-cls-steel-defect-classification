@@ -1,7 +1,7 @@
 # NEU-CLS Steel Defect Classification — project configuration
-# Phase 1 (data prep) and Phase 2 (classical baseline) settings live here.
-# Later phases (transfer learning, Grad-CAM, Streamlit) will extend this
-# file, not replace it.
+# Phase 1 (data prep), Phase 2 (classical baseline) and Phase 3 (ResNet18
+# transfer learning) settings live here. Later phases (Grad-CAM, Streamlit)
+# will extend this file, not replace it.
 
 seed: 42
 
@@ -58,6 +58,49 @@ baseline:
   random_state: 42
   output:
     model_path: models/baseline.joblib
+    results_dir: reports
+
+# Phase 3 — ResNet18 transfer learning (ImageNet-pretrained backbone,
+# frozen, with a fine-tuned linear classification head).
+#
+# "Development data" (dev) = train + val manifests pooled together. The
+# frozen test manifest is loaded only once, at the very end, for final
+# reporting — never during k-fold CV or model selection.
+#
+# Model selection: k-fold CV on dev picks the number of training epochs
+# (the epoch with the best mean val f1_macro across folds, tracked
+# per-fold); the final model is then retrained from scratch on the FULL
+# dev set for that many epochs and evaluated once on test.
+transfer_learning:
+  backbone: resnet18
+  pretrained: true
+  freeze_backbone: true   # only the replaced final FC layer is trained
+  input_size: [224, 224]  # standard ImageNet input size for this backbone
+  imagenet_mean: [0.485, 0.456, 0.406]
+  imagenet_std: [0.229, 0.224, 0.225]
+  augmentation:
+    # Defects are texture/pattern-based, not orientation-dependent, so
+    # rotation/flip/slight crop are safe. No color jitter — images are
+    # grayscale content (RGB-encoded), so color augmentation is meaningless
+    # (see reports/data_integrity.md).
+    random_rotation_degrees: 15
+    horizontal_flip: true
+    vertical_flip: true
+    random_resized_crop_scale: [0.85, 1.0]
+  training:
+    batch_size: 32
+    max_epochs: 6          # per CV fold; final model retrains for the selected epoch count
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    optimizer: adam
+    num_workers: 0          # deterministic, avoids Windows multiprocessing overhead for this dataset size
+  cv:
+    n_splits: 5
+    seed: 42
+    selection_metric: f1_macro   # metric used to pick the best epoch, per fold and on average
+  seed: 42
+  output:
+    model_path: models/resnet18_finetuned.pt
     results_dir: reports
 
 paths:

@@ -1,0 +1,46 @@
+{
+  "backbone": "resnet18",
+  "pretrained": true,
+  "freeze_backbone": true,
+  "input_size": [
+    224,
+    224
+  ],
+  "imagenet_mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "imagenet_std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "augmentation": {
+    "random_rotation_degrees": 15,
+    "horizontal_flip": true,
+    "vertical_flip": true,
+    "random_resized_crop_scale": [
+      0.85,
+      1.0
+    ]
+  },
+  "training": {
+    "batch_size": 32,
+    "max_epochs": 6,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "optimizer": "adam",
+    "num_workers": 0
+  },
+  "cv": {
+    "n_splits": 5,
+    "seed": 42,
+    "selection_metric": "f1_macro"
+  },
+  "seed": 42,
+  "output": {
+    "model_path": "models/resnet18_finetuned.pt",
+    "results_dir": "reports"
+  }
+}
